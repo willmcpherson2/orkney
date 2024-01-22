@@ -1,8 +1,15 @@
 use bevy::prelude::*;
+use wasm_bindgen::prelude::*;
+use web_sys::{MessageEvent, WebSocket};
 
 fn main() {
+    start_websocket();
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(bevy::log::LogPlugin {
+            level: bevy::log::Level::INFO,
+            filter: "wgpu=warn,bevy_ecs=info".to_string(),
+            ..default()
+        }))
         .add_systems(Startup, setup)
         .run();
 }
@@ -37,4 +44,28 @@ fn setup(
         transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
+}
+
+fn start_websocket() -> Result<(), JsValue> {
+    let ws = WebSocket::new("ws://localhost:3000/ws")?;
+
+    let on_message = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
+        if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
+            info!("received message: {:?}", txt);
+        } else {
+            info!("received unknown: {:?}", e.data());
+        }
+    });
+    ws.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+    on_message.forget();
+
+    let ws_sender = ws.clone();
+    let on_open = Closure::<dyn FnMut()>::new(move || match ws_sender.send_with_str("ping") {
+        Ok(_) => info!("sent a ping"),
+        Err(err) => info!("error sending message: {:?}", err),
+    });
+    ws.set_onopen(Some(on_open.as_ref().unchecked_ref()));
+    on_open.forget();
+
+    Ok(())
 }
