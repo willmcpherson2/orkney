@@ -1,10 +1,8 @@
-[package]
-name = "orkney"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-bevy = { version = "0.12.1" }
+[workspace]
+resolver = "2"
+members = [
+  "client", "server",
+]
 
 [profile.wasm-release]
 inherits = "release"
