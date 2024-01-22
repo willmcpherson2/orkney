@@ -1342,6 +1342,7 @@ name = "client"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "js-sys",
  "shared",
  "wasm-bindgen",
  "web-sys",
