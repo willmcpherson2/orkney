@@ -5,3 +5,9 @@ edition = "2021"
 
 [dependencies]
 bevy = { version = "0.12.1" }
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1

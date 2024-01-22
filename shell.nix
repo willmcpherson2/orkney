@@ -4,6 +4,7 @@ pkgs.mkShell rec {
     pkgs.pkg-config
   ];
   buildInputs = [
+    pkgs.binaryen
     pkgs.udev
     pkgs.alsa-lib
     pkgs.vulkan-loader
