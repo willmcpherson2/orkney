@@ -11,7 +11,7 @@ cargo install wasm-bindgen-cli
 
 ```sh
 cargo build -p client --target wasm32-unknown-unknown
-~/.cargo/bin/wasm-bindgen --out-dir target --target web target/wasm32-unknown-unknown/debug/client.wasm
+~/.cargo/bin/wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/debug/client.wasm
 cargo run -p server
 ```
 
@@ -19,7 +19,7 @@ cargo run -p server
 
 ```sh
 cargo build -p client --profile wasm-release --target wasm32-unknown-unknown
-~/.cargo/bin/wasm-bindgen --out-dir target --target web target/wasm32-unknown-unknown/wasm-release/client.wasm
+~/.cargo/bin/wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/wasm-release/client.wasm
 wasm-opt -Oz --output target/client_bg.wasm target/client_bg.wasm
-cargo run -p server
+cargo build -p server --profile release
 ```
