@@ -59,14 +59,20 @@ async fn websocket_handler(
 }
 
 async fn websocket(mut stream: WebSocket, state: Arc<AppState>) {
-    while let Some(Ok(message)) = stream.next().await {
-        if let Message::Text(ping) = message {
-            println!("received message: {:?}", ping);
-            stream
-                .send(Message::Text(String::from("pong")))
-                .await
-                .unwrap();
-            println!("sent a pong");
+    tracing::info!("starting websocket");
+    while let Some(message) = stream.next().await {
+        match message {
+            Ok(Message::Text(text)) => {
+                tracing::info!("received text: {:?}", text);
+                stream
+                    .send(Message::Text(String::from("pong")))
+                    .await
+                    .unwrap();
+                tracing::info!("sent a pong");
+            }
+            other => {
+                tracing::info!("received message: {:?}", other);
+            }
         }
     }
 }

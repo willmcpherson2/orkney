@@ -3,14 +3,10 @@ use wasm_bindgen::prelude::*;
 use web_sys::{MessageEvent, WebSocket};
 
 fn main() {
-    start_websocket();
     App::new()
-        .add_plugins(DefaultPlugins.set(bevy::log::LogPlugin {
-            level: bevy::log::Level::INFO,
-            filter: "wgpu=warn,bevy_ecs=info".to_string(),
-            ..default()
-        }))
+        .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
+        .add_systems(Startup, start_websocket)
         .run();
 }
 
@@ -46,8 +42,8 @@ fn setup(
     });
 }
 
-fn start_websocket() -> Result<(), JsValue> {
-    let ws = WebSocket::new("ws://localhost:3000/ws")?;
+fn start_websocket() {
+    let ws = WebSocket::new("ws://localhost:3000/ws").unwrap();
 
     let on_message = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
         if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
@@ -66,6 +62,4 @@ fn start_websocket() -> Result<(), JsValue> {
     });
     ws.set_onopen(Some(on_open.as_ref().unchecked_ref()));
     on_open.forget();
-
-    Ok(())
 }
