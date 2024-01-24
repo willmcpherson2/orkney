@@ -8,17 +8,20 @@ use axum::{
     Router,
 };
 use futures_util::StreamExt;
-use shared::Id;
+use shared::{ClientMessage, ServerMessage};
 use std::{
     env,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 use tokio::{net, sync::broadcast};
 use tower_http::services::ServeDir;
 use tracing_subscriber::prelude::*;
 
 struct AppState {
-    id_counter: Mutex<Id>,
+    id_counter: AtomicU64,
     tx: broadcast::Sender<String>,
 }
 
@@ -38,7 +41,7 @@ async fn main() {
 
     tracing::debug!("listening on http://{}", url);
 
-    let id_counter = Mutex::new(0);
+    let id_counter = AtomicU64::new(0);
     let (tx, _rx) = broadcast::channel(100);
     let app_state = Arc::new(AppState { id_counter, tx });
 
@@ -60,18 +63,27 @@ async fn websocket_handler(
 
 async fn websocket(mut stream: WebSocket, state: Arc<AppState>) {
     tracing::info!("starting websocket");
-    while let Some(message) = stream.next().await {
-        match message {
-            Ok(Message::Text(text)) => {
-                tracing::info!("received text: {:?}", text);
-                stream
-                    .send(Message::Text(String::from("pong")))
-                    .await
-                    .unwrap();
-                tracing::info!("sent a pong");
-            }
+    while let Some(msg) = stream.next().await {
+        match msg {
+            Ok(Message::Text(text)) => match serde_json::from_str(&text) {
+                Ok(msg) => {
+                    tracing::info!("received message: {:?}", msg);
+                    match msg {
+                        ClientMessage::RequestId => {
+                            let id = state.id_counter.fetch_add(1, Ordering::SeqCst);
+                            let msg = ServerMessage::NewId(id);
+                            let json = serde_json::to_string(&msg).unwrap();
+                            stream.send(Message::Text(json)).await.unwrap();
+                            tracing::info!("sent message: {:?}", msg);
+                        }
+                    }
+                }
+                Err(err) => {
+                    tracing::info!("message error: {:?}", err);
+                }
+            },
             other => {
-                tracing::info!("received message: {:?}", other);
+                tracing::info!("unknown message: {:?}", other);
             }
         }
     }

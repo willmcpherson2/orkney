@@ -1343,6 +1343,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "js-sys",
+ "serde_json",
  "shared",
  "wasm-bindgen",
  "web-sys",
@@ -3317,6 +3318,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "futures-util",
+ "serde_json",
  "shared",
  "tokio",
  "tower-http",
@@ -3347,6 +3349,9 @@ dependencies = [
 [[package]]
 name = "shared"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "shlex"

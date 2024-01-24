@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use shared::{ClientMessage, ServerMessage};
 use wasm_bindgen::prelude::*;
 use web_sys::{MessageEvent, WebSocket};
 
@@ -46,8 +47,20 @@ fn start_websocket() {
     let ws = WebSocket::new("ws://localhost:3000/ws").unwrap();
 
     let on_message = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
-        if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
-            info!("received message: {:?}", txt);
+        if let Ok(text) = e.data().dyn_into::<js_sys::JsString>() {
+            match serde_json::from_str(&text.as_string().unwrap()) {
+                Ok(msg) => {
+                    info!("received message: {:?}", msg);
+                    match msg {
+                        ServerMessage::NewId(id) => {
+                            info!("new ID: {:?}", id);
+                        }
+                    }
+                }
+                Err(err) => {
+                    info!("message error: {:?}", err);
+                }
+            }
         } else {
             info!("received unknown: {:?}", e.data());
         }
@@ -55,9 +68,12 @@ fn start_websocket() {
     ws.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
     on_message.forget();
 
+    let msg = ClientMessage::RequestId;
+    let json = serde_json::to_string(&msg).unwrap();
+
     let ws_sender = ws.clone();
-    let on_open = Closure::<dyn FnMut()>::new(move || match ws_sender.send_with_str("ping") {
-        Ok(_) => info!("sent a ping"),
+    let on_open = Closure::<dyn FnMut()>::new(move || match ws_sender.send_with_str(&json) {
+        Ok(_) => info!("sent message: {:?}", msg),
         Err(err) => info!("error sending message: {:?}", err),
     });
     ws.set_onopen(Some(on_open.as_ref().unchecked_ref()));
