@@ -16,13 +16,12 @@ use std::{
         Arc,
     },
 };
-use tokio::{net, sync::broadcast};
+use tokio::net;
 use tower_http::services::ServeDir;
 use tracing_subscriber::prelude::*;
 
 struct AppState {
     id_counter: AtomicU64,
-    tx: broadcast::Sender<String>,
 }
 
 #[tokio::main]
@@ -42,8 +41,7 @@ async fn main() {
     tracing::debug!("listening on http://{}", url);
 
     let id_counter = AtomicU64::new(0);
-    let (tx, _rx) = broadcast::channel(100);
-    let app_state = Arc::new(AppState { id_counter, tx });
+    let app_state = Arc::new(AppState { id_counter });
 
     let router = Router::new()
         .nest_service("/", ServeDir::new(root))
