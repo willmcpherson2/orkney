@@ -51,11 +51,7 @@ fn start_websocket() {
             match serde_json::from_str(&text.as_string().unwrap()) {
                 Ok(msg) => {
                     info!("received message: {:?}", msg);
-                    match msg {
-                        ServerMessage::NewId(id) => {
-                            info!("new ID: {:?}", id);
-                        }
-                    }
+                    receive(msg);
                 }
                 Err(err) => {
                     info!("message error: {:?}", err);
@@ -78,4 +74,12 @@ fn start_websocket() {
     });
     ws.set_onopen(Some(on_open.as_ref().unchecked_ref()));
     on_open.forget();
+}
+
+fn receive(msg: ServerMessage) {
+    match msg {
+        ServerMessage::NewId(id) => {
+            info!("new ID: {:?}", id);
+        }
+    }
 }

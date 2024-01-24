@@ -66,15 +66,7 @@ async fn websocket(mut stream: WebSocket, state: Arc<AppState>) {
             Ok(Message::Text(text)) => match serde_json::from_str(&text) {
                 Ok(msg) => {
                     tracing::info!("received message: {:?}", msg);
-                    match msg {
-                        ClientMessage::RequestId => {
-                            let id = state.id_counter.fetch_add(1, Ordering::SeqCst);
-                            let msg = ServerMessage::NewId(id);
-                            let json = serde_json::to_string(&msg).unwrap();
-                            stream.send(Message::Text(json)).await.unwrap();
-                            tracing::info!("sent message: {:?}", msg);
-                        }
-                    }
+                    receive(msg, &state, &mut stream).await;
                 }
                 Err(err) => {
                     tracing::info!("message error: {:?}", err);
@@ -83,6 +75,18 @@ async fn websocket(mut stream: WebSocket, state: Arc<AppState>) {
             other => {
                 tracing::info!("unknown message: {:?}", other);
             }
+        }
+    }
+}
+
+async fn receive(msg: ClientMessage, state: &Arc<AppState>, stream: &mut WebSocket) {
+    match msg {
+        ClientMessage::RequestId => {
+            let id = state.id_counter.fetch_add(1, Ordering::SeqCst);
+            let msg = ServerMessage::NewId(id);
+            let json = serde_json::to_string(&msg).unwrap();
+            stream.send(Message::Text(json)).await.unwrap();
+            tracing::info!("sent message: {:?}", msg);
         }
     }
 }
