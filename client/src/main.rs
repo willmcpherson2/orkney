@@ -45,10 +45,12 @@ fn setup(
 
 fn start_websocket() {
     let ws = WebSocket::new("ws://localhost:3000/ws").unwrap();
+    ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
 
     let on_message = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
-        if let Ok(text) = e.data().dyn_into::<js_sys::JsString>() {
-            match serde_json::from_str(&text.as_string().unwrap()) {
+        if let Ok(array) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
+            let bytes = js_sys::Uint8Array::new(&array).to_vec();
+            match bincode::deserialize(&bytes) {
                 Ok(msg) => {
                     info!("received message: {:?}", msg);
                     receive(msg);
@@ -65,10 +67,10 @@ fn start_websocket() {
     on_message.forget();
 
     let msg = ClientMessage::RequestId;
-    let json = serde_json::to_string(&msg).unwrap();
+    let bytes = bincode::serialize(&msg).unwrap();
 
     let ws_sender = ws.clone();
-    let on_open = Closure::<dyn FnMut()>::new(move || match ws_sender.send_with_str(&json) {
+    let on_open = Closure::<dyn FnMut()>::new(move || match ws_sender.send_with_u8_array(&bytes) {
         Ok(_) => info!("sent message: {:?}", msg),
         Err(err) => info!("error sending message: {:?}", err),
     });

@@ -63,7 +63,7 @@ async fn websocket(mut stream: WebSocket, state: Arc<AppState>) {
     tracing::info!("starting websocket");
     while let Some(msg) = stream.next().await {
         match msg {
-            Ok(Message::Text(text)) => match serde_json::from_str(&text) {
+            Ok(Message::Binary(bytes)) => match bincode::deserialize(&bytes) {
                 Ok(msg) => {
                     tracing::info!("received message: {:?}", msg);
                     receive(msg, &state, &mut stream).await;
@@ -84,8 +84,8 @@ async fn receive(msg: ClientMessage, state: &Arc<AppState>, stream: &mut WebSock
         ClientMessage::RequestId => {
             let id = state.id_counter.fetch_add(1, Ordering::SeqCst);
             let msg = ServerMessage::NewId(id);
-            let json = serde_json::to_string(&msg).unwrap();
-            stream.send(Message::Text(json)).await.unwrap();
+            let bytes = bincode::serialize(&msg).unwrap();
+            stream.send(Message::Binary(bytes)).await.unwrap();
             tracing::info!("sent message: {:?}", msg);
         }
     }
