@@ -8,7 +8,7 @@ use axum::{
     Router,
 };
 use futures_util::StreamExt;
-use shared::{ClientMessage, ServerMessage};
+use shared::{ClientMessage, ClientId, ServerMessage};
 use std::{
     env,
     sync::{
@@ -81,9 +81,9 @@ async fn websocket(mut stream: WebSocket, state: Arc<AppState>) {
 
 async fn receive(msg: ClientMessage, state: &Arc<AppState>, stream: &mut WebSocket) {
     match msg {
-        ClientMessage::RequestId => {
+        ClientMessage::RequestClientId => {
             let id = state.id_counter.fetch_add(1, Ordering::SeqCst);
-            let msg = ServerMessage::NewId(id);
+            let msg = ServerMessage::NewClientId(ClientId(id));
             let bytes = bincode::serialize(&msg).unwrap();
             stream.send(Message::Binary(bytes)).await.unwrap();
             tracing::info!("sent message: {:?}", msg);
