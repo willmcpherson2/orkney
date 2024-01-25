@@ -11,7 +11,7 @@ cargo install wasm-bindgen-cli
 
 ```sh
 cargo build -p client --profile wasm-dev --target wasm32-unknown-unknown
-~/.cargo/bin/wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/debug/client.wasm
+~/.cargo/bin/wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/wasm-dev/client.wasm
 cargo run -p server
 ```
 
@@ -19,7 +19,7 @@ cargo run -p server
 
 ```sh
 ~/.cargo/bin/cargo-watch -x 'run -p server'
-~/.cargo/bin/cargo-watch -x 'build -p client --profile wasm-dev --target wasm32-unknown-unknown' -s '~/.cargo/bin/wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/debug/client.wasm'
+~/.cargo/bin/cargo-watch -x 'build -p client --profile wasm-dev --target wasm32-unknown-unknown' -s '~/.cargo/bin/wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/wasm-dev/client.wasm'
 ```
 
 ## Production
