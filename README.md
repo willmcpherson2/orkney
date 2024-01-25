@@ -15,6 +15,13 @@ cargo build -p client --target wasm32-unknown-unknown
 cargo run -p server
 ```
 
+## Watch
+
+```sh
+~/.cargo/bin/cargo-watch -x 'run -p server'
+~/.cargo/bin/cargo-watch -x 'build -p client --target wasm32-unknown-unknown' -s '~/.cargo/bin/wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/debug/client.wasm'
+```
+
 ## Production
 
 ```sh
