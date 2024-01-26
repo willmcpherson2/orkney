@@ -2,6 +2,7 @@ mod inbox;
 mod outbox;
 
 use bevy::prelude::*;
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use inbox::Inbox;
 use outbox::Outbox;
 use shared::{ClientMessage, ServerMessage};
@@ -14,9 +15,16 @@ enum AppState {
     Game,
 }
 
+#[derive(Resource)]
+struct Username(String);
+
+#[derive(Resource)]
+struct Lobby(String);
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(EguiPlugin)
         .add_state::<AppState>()
         .add_systems(OnEnter(AppState::Menu), enter_menu)
         .add_systems(Update, update_menu.run_if(in_state(AppState::Menu)))
@@ -25,10 +33,36 @@ fn main() {
         .run();
 }
 
-fn enter_menu() {}
+fn enter_menu(mut commands: Commands) {
+    commands.insert_resource(Username("Anonymous".to_string()));
+    commands.insert_resource(Lobby("Public".to_string()));
+}
 
-fn update_menu(mut next_state: ResMut<NextState<AppState>>) {
-    next_state.set(AppState::Game);
+fn update_menu(
+    mut contexts: EguiContexts,
+    mut next_state: ResMut<NextState<AppState>>,
+    mut username: ResMut<Username>,
+    mut lobby: ResMut<Lobby>,
+) {
+    let ctx = contexts.ctx_mut();
+    egui::CentralPanel::default().show(ctx, |ui| {
+        ui.heading("Menu");
+        ui.horizontal(|ui| {
+            ui.label("Theme:");
+            egui::global_dark_light_mode_buttons(ui);
+        });
+        ui.horizontal(|ui| {
+            ui.label("Username:");
+            ui.text_edit_singleline(&mut username.0);
+        });
+        ui.horizontal(|ui| {
+            ui.label("Lobby:");
+            ui.text_edit_singleline(&mut lobby.0);
+        });
+        if ui.add(egui::Button::new("Join")).clicked() {
+            next_state.set(AppState::Game);
+        }
+    });
 }
 
 fn connect(world: &mut World) {
