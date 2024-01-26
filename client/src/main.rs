@@ -7,15 +7,53 @@ use outbox::Outbox;
 use shared::{ClientMessage, ServerMessage};
 use web_sys::WebSocket;
 
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
+enum AppState {
+    #[default]
+    Menu,
+    Game,
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_systems(Startup, (setup, connect))
-        .add_systems(Update, update)
+        .add_state::<AppState>()
+        .add_systems(OnEnter(AppState::Menu), enter_menu)
+        .add_systems(Update, update_menu.run_if(in_state(AppState::Menu)))
+        .add_systems(OnEnter(AppState::Game), enter_game)
+        .add_systems(Update, update_game.run_if(in_state(AppState::Game)))
         .run();
 }
 
-fn setup(
+fn enter_menu() {}
+
+fn update_menu(mut next_state: ResMut<NextState<AppState>>) {
+    next_state.set(AppState::Game);
+}
+
+fn connect(world: &mut World) {
+    let ws = WebSocket::new("ws://localhost:3000/ws").unwrap();
+    ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
+    let inbox = Inbox::new(&ws);
+    let mut outbox = Outbox::new(&ws);
+    outbox.send(ClientMessage::RequestClientId);
+
+    world.insert_resource(inbox);
+    world.insert_non_send_resource(outbox);
+}
+
+fn update(mut commands: Commands, inbox: ResMut<Inbox>) {
+    for msg in inbox.queue.lock().unwrap().drain(..) {
+        match msg {
+            ServerMessage::NewClientId(id) => {
+                info!("received client id: {:?}", id);
+                commands.insert_resource(id);
+            }
+        }
+    }
+}
+
+fn enter_game(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -47,24 +85,4 @@ fn setup(
     });
 }
 
-fn connect(world: &mut World) {
-    let ws = WebSocket::new("ws://localhost:3000/ws").unwrap();
-    ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
-    let inbox = Inbox::new(&ws);
-    let mut outbox = Outbox::new(&ws);
-    outbox.send(ClientMessage::RequestClientId);
-
-    world.insert_resource(inbox);
-    world.insert_non_send_resource(outbox);
-}
-
-fn update(mut commands: Commands, inbox: ResMut<Inbox>) {
-    for msg in inbox.queue.lock().unwrap().drain(..) {
-        match msg {
-            ServerMessage::NewClientId(id) => {
-                info!("received client id: {:?}", id);
-                commands.insert_resource(id);
-            }
-        }
-    }
-}
+fn update_game() {}
