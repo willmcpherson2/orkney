@@ -1,8 +1,11 @@
+mod inbox;
+mod outbox;
+
 use bevy::prelude::*;
-use shared::{ClientMessage, ClientId, ServerMessage};
-use std::{collections::VecDeque, sync::Arc, sync::Mutex};
-use wasm_bindgen::prelude::*;
-use web_sys::{MessageEvent, WebSocket};
+use inbox::Inbox;
+use outbox::Outbox;
+use shared::{ClientMessage, ServerMessage};
+use web_sys::WebSocket;
 
 fn main() {
     let ws = WebSocket::new("ws://localhost:3000/ws").unwrap();
@@ -17,80 +20,6 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(Update, update)
         .run();
-}
-
-#[derive(Resource)]
-struct Inbox {
-    queue: Arc<Mutex<VecDeque<ServerMessage>>>,
-}
-
-impl Inbox {
-    fn new(ws: &WebSocket) -> Inbox {
-        let queue = Arc::new(Mutex::new(VecDeque::new()));
-        let queue_clone = queue.clone();
-        let on_message = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
-            if let Ok(array) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
-                let bytes = js_sys::Uint8Array::new(&array).to_vec();
-                match bincode::deserialize::<ServerMessage>(&bytes) {
-                    Ok(msg) => {
-                        info!("received message: {:?}", msg);
-                        queue_clone.lock().unwrap().push_back(msg);
-                    }
-                    Err(err) => {
-                        info!("message error: {:?}", err);
-                    }
-                }
-            } else {
-                info!("received unknown: {:?}", e.data());
-            }
-        });
-        ws.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
-        on_message.forget();
-        Inbox { queue }
-    }
-}
-
-struct Outbox {
-    ws: WebSocket,
-    queue: Arc<Mutex<VecDeque<ClientMessage>>>,
-}
-
-impl Outbox {
-    fn new(ws: &WebSocket) -> Outbox {
-        let ws_clone = ws.clone();
-        let queue = Arc::new(Mutex::new(VecDeque::new()));
-        let queue_clone = queue.clone();
-        let on_open = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
-            info!("websocket opened");
-            let mut queue = queue_clone.lock().unwrap();
-            while let Some(msg) = queue.pop_front() {
-                info!("sending message: {:?}", msg);
-                let bytes = bincode::serialize(&msg).unwrap();
-                ws_clone.send_with_u8_array(&bytes).unwrap();
-            }
-        });
-        ws.set_onopen(Some(on_open.as_ref().unchecked_ref()));
-        on_open.forget();
-        Outbox {
-            ws: ws.clone(),
-            queue,
-        }
-    }
-
-    fn send(&mut self, msg: ClientMessage) {
-        if self.is_open() {
-            info!("sending message: {:?}", msg);
-            let bytes = bincode::serialize(&msg).unwrap();
-            self.ws.send_with_u8_array(&bytes).unwrap();
-        } else {
-            info!("queueing message: {:?}", msg);
-            self.queue.lock().unwrap().push_back(msg);
-        }
-    }
-
-    fn is_open(&self) -> bool {
-        self.ws.ready_state() == WebSocket::OPEN
-    }
 }
 
 fn setup(
