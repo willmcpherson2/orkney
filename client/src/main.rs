@@ -1,18 +1,33 @@
-mod inbox;
-mod outbox;
-
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
-use inbox::Inbox;
-use outbox::Outbox;
+use bincode::{deserialize, serialize};
+use ewebsock::{WsEvent, WsMessage, WsReceiver, WsSender};
 use shared::{ClientMessage, Lobby, ServerMessage, Username};
-use web_sys::WebSocket;
+use std::sync::Mutex;
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum AppState {
     #[default]
     Menu,
     Game,
+}
+
+struct Sender(WsSender);
+
+impl Sender {
+    fn send(&mut self, msg: ClientMessage) {
+        let bytes = serialize(&msg).unwrap();
+        self.0.send(WsMessage::Binary(bytes));
+    }
+}
+
+#[derive(Resource)]
+struct Receiver(Mutex<WsReceiver>);
+
+impl Receiver {
+    fn try_recv(&self) -> Option<WsEvent> {
+        self.0.lock().unwrap().try_recv()
+    }
 }
 
 fn main() {
@@ -98,21 +113,37 @@ fn join_game(world: &mut World) {
 
     let url = format!("ws://localhost:3000/join/{}/{}", &lobby.0, &username.0);
     info!("connecting to {}", url);
-    let ws = WebSocket::new(&url).unwrap();
-    ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
-    let inbox = Inbox::new(&ws);
-    let mut outbox = Outbox::new(&ws);
+    let (sender, receiver) = ewebsock::connect(url).unwrap();
 
-    outbox.send(ClientMessage::HelloFromClient);
-
-    world.insert_resource(inbox);
-    world.insert_non_send_resource(outbox);
+    world.insert_non_send_resource(Sender(sender));
+    world.insert_resource(Receiver(Mutex::new(receiver)));
 }
 
-fn update_game(inbox: ResMut<Inbox>) {
-    for msg in inbox.queue.lock().unwrap().drain(..) {
-        match msg {
-            ServerMessage::HelloFromServer => {}
+fn update_game(mut sender: NonSendMut<Sender>, receiver: ResMut<Receiver>) {
+    while let Some(event) = receiver.try_recv() {
+        match event {
+            WsEvent::Message(msg) => match msg {
+                WsMessage::Binary(bytes) => match deserialize::<ServerMessage>(&bytes) {
+                    Ok(msg) => {
+                        info!("received message: {:?}", msg);
+                    }
+                    Err(err) => {
+                        info!("message error: {:?}", err);
+                    }
+                },
+                msg => info!("non-binary message: {:?}", msg),
+            },
+            WsEvent::Opened => {
+                let msg = ClientMessage::HelloFromClient;
+                info!("sending message: {:?}", msg);
+                sender.send(msg);
+            }
+            WsEvent::Closed => {
+                info!("websocket closed");
+            }
+            WsEvent::Error(err) => {
+                info!("websocket error: {:?}", err);
+            }
         }
     }
 }

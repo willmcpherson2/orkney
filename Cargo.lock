@@ -344,7 +344,7 @@ dependencies = [
  "base64 0.21.7",
  "bytes",
  "futures-util",
- "http",
+ "http 1.0.0",
  "http-body",
  "http-body-util",
  "hyper",
@@ -379,7 +379,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures-util",
- "http",
+ "http 1.0.0",
  "http-body",
  "http-body-util",
  "mime",
@@ -1385,10 +1385,8 @@ dependencies = [
  "bevy",
  "bevy_egui",
  "bincode",
- "js-sys",
+ "ewebsock",
  "shared",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -1648,6 +1646,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd0c93bb4b0c6d9b77f4435b0ae98c24d17f1c45b2ff844c6151a07256ca923b"
 
 [[package]]
+name = "document-features"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef5282ad69563b5fc40319526ba27e0e7363d552a896f0297d54f767717f9b95"
+dependencies = [
+ "litrs",
+]
+
+[[package]]
 name = "downcast-rs"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1788,6 +1795,21 @@ checksum = "958e4d70b6d5e81971bebec42271ec641e7ff4e170a6fa605f2b8a8b65cb97d3"
 dependencies = [
  "event-listener 4.0.3",
  "pin-project-lite",
+]
+
+[[package]]
+name = "ewebsock"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7340666282406cb008c4d7206e6d7e157a82486afddd26deaad3ce9ebff3f238"
+dependencies = [
+ "document-features",
+ "js-sys",
+ "log",
+ "tungstenite 0.20.1",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -2189,7 +2211,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "futures-util",
- "http",
+ "http 1.0.0",
  "indexmap 2.1.0",
  "slab",
  "tokio",
@@ -2262,6 +2284,17 @@ dependencies = [
 
 [[package]]
 name = "http"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8947b1a6fad4393052c7ba1f4cd97bed3e953a95c79c92ad9b051a04611d9fbb"
+dependencies = [
+ "bytes",
+ "fnv",
+ "itoa",
+]
+
+[[package]]
+name = "http"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b32afd38673a8016f7c9ae69e5af41a58f81b1d31689040f2f1959594ce194ea"
@@ -2278,7 +2311,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1cac85db508abc24a2e48553ba12a996e87244a0395ce011e62b37158745d643"
 dependencies = [
  "bytes",
- "http",
+ "http 1.0.0",
 ]
 
 [[package]]
@@ -2289,7 +2322,7 @@ checksum = "41cb79eb393015dadd30fc252023adb0b2400a0caee0fa2a077e6e21a551e840"
 dependencies = [
  "bytes",
  "futures-util",
- "http",
+ "http 1.0.0",
  "http-body",
  "pin-project-lite",
 ]
@@ -2322,7 +2355,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "h2",
- "http",
+ "http 1.0.0",
  "http-body",
  "httparse",
  "httpdate",
@@ -2340,7 +2373,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "http",
+ "http 1.0.0",
  "http-body",
  "hyper",
  "pin-project-lite",
@@ -2610,6 +2643,12 @@ dependencies = [
  "libc",
  "pkg-config",
 ]
+
+[[package]]
+name = "litrs"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4ce301924b7887e9d637144fdade93f9dfff9b60981d4ac161db09720d39aa5"
 
 [[package]]
 name = "lock_api"
@@ -3812,7 +3851,7 @@ dependencies = [
  "futures-util",
  "log",
  "tokio",
- "tungstenite",
+ "tungstenite 0.21.0",
 ]
 
 [[package]]
@@ -3882,7 +3921,7 @@ dependencies = [
  "bitflags 2.4.2",
  "bytes",
  "futures-util",
- "http",
+ "http 1.0.0",
  "http-body",
  "http-body-util",
  "http-range-header",
@@ -4002,6 +4041,25 @@ checksum = "17f77d76d837a7830fe1d4f12b7b4ba4192c1888001c7164257e4bc6d21d96b4"
 
 [[package]]
 name = "tungstenite"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e3dac10fd62eaf6617d3a904ae222845979aec67c615d1c842b4002c7666fb9"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "data-encoding",
+ "http 0.2.11",
+ "httparse",
+ "log",
+ "rand",
+ "sha1",
+ "thiserror",
+ "url",
+ "utf-8",
+]
+
+[[package]]
+name = "tungstenite"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ef1a641ea34f399a848dea702823bbecfb4c486f911735368f1f137cb8257e1"
@@ -4009,7 +4067,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "data-encoding",
- "http",
+ "http 1.0.0",
  "httparse",
  "log",
  "rand",
