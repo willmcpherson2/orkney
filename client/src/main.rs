@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use inbox::Inbox;
 use outbox::Outbox;
-use shared::{ClientMessage, ServerMessage};
+use shared::{ClientMessage, Lobby, ServerMessage, Username};
 use web_sys::WebSocket;
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
@@ -15,12 +15,6 @@ enum AppState {
     Game,
 }
 
-#[derive(Resource)]
-struct Username(String);
-
-#[derive(Resource)]
-struct Lobby(String);
-
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -28,6 +22,7 @@ fn main() {
         .add_state::<AppState>()
         .add_systems(OnEnter(AppState::Menu), enter_menu)
         .add_systems(Update, update_menu.run_if(in_state(AppState::Menu)))
+        .add_systems(OnEnter(AppState::Game), join_game)
         .add_systems(OnEnter(AppState::Game), enter_game)
         .add_systems(Update, update_game.run_if(in_state(AppState::Game)))
         .run();
@@ -65,28 +60,6 @@ fn update_menu(
     });
 }
 
-fn connect(world: &mut World) {
-    let ws = WebSocket::new("ws://localhost:3000/ws").unwrap();
-    ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
-    let inbox = Inbox::new(&ws);
-    let mut outbox = Outbox::new(&ws);
-    outbox.send(ClientMessage::RequestClientId);
-
-    world.insert_resource(inbox);
-    world.insert_non_send_resource(outbox);
-}
-
-fn update(mut commands: Commands, inbox: ResMut<Inbox>) {
-    for msg in inbox.queue.lock().unwrap().drain(..) {
-        match msg {
-            ServerMessage::NewClientId(id) => {
-                info!("received client id: {:?}", id);
-                commands.insert_resource(id);
-            }
-        }
-    }
-}
-
 fn enter_game(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -119,4 +92,27 @@ fn enter_game(
     });
 }
 
-fn update_game() {}
+fn join_game(world: &mut World) {
+    let lobby = world.get_resource::<Lobby>().unwrap();
+    let username = world.get_resource::<Username>().unwrap();
+
+    let url = format!("ws://localhost:3000/join/{}/{}", &lobby.0, &username.0);
+    info!("connecting to {}", url);
+    let ws = WebSocket::new(&url).unwrap();
+    ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
+    let inbox = Inbox::new(&ws);
+    let mut outbox = Outbox::new(&ws);
+
+    outbox.send(ClientMessage::HelloFromClient);
+
+    world.insert_resource(inbox);
+    world.insert_non_send_resource(outbox);
+}
+
+fn update_game(inbox: ResMut<Inbox>) {
+    for msg in inbox.queue.lock().unwrap().drain(..) {
+        match msg {
+            ServerMessage::HelloFromServer => {}
+        }
+    }
+}

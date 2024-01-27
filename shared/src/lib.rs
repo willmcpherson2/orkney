@@ -1,15 +1,18 @@
 use bevy::ecs::system::Resource;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-#[derive(Resource, Serialize, Deserialize, Debug)]
-pub struct ClientId(pub u64);
+#[derive(Serialize, Deserialize, Debug, Resource)]
+pub struct Username(pub String);
+
+#[derive(Serialize, Deserialize, Debug, Resource)]
+pub struct Lobby(pub String);
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ClientMessage {
-    RequestClientId,
+    HelloFromClient,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ServerMessage {
-    NewClientId(ClientId),
+    HelloFromServer,
 }
