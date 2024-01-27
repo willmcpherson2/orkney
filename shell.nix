@@ -16,19 +16,36 @@ pkgs.mkShell rec {
     (pkgs.writeShellScriptBin "watch-server" ''
       cargo watch -x "run -p server --color always"
     '')
-    (pkgs.writeShellScriptBin "watch-client" ''
+    (pkgs.writeShellScriptBin "watch-client-native" ''
+      cargo watch -x "run -p client --profile native-dev --features bevy/dynamic_linking --color always"
+    '')
+    (pkgs.writeShellScriptBin "watch-client-web" ''
       cargo watch \
-        -x "build -p client --profile wasm-dev --target wasm32-unknown-unknown --color always" \
-        -s "wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/wasm-dev/client.wasm"
+        -x "build -p client --profile web-dev --target wasm32-unknown-unknown --color always" \
+        -s "wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/web-dev/client.wasm"
     '')
-    (pkgs.writeShellScriptBin "watch" ''
-      concurrently -n server,client -c red,blue watch-server watch-client
+    (pkgs.writeShellScriptBin "watch-native" ''
+      concurrently -n server,client -c red,blue watch-server watch-client-native
     '')
-    (pkgs.writeShellScriptBin "build" ''
+    (pkgs.writeShellScriptBin "watch-web" ''
+      concurrently -n server,client -c red,blue watch-server watch-client-web
+    '')
+    (pkgs.writeShellScriptBin "build-server" ''
       cargo build -p server --profile release
-      cargo build -p client --profile wasm-release --target wasm32-unknown-unknown
-      wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/wasm-release/client.wasm
+    '')
+    (pkgs.writeShellScriptBin "build-client-native" ''
+      cargo build -p client --profile release
+    '')
+    (pkgs.writeShellScriptBin "build-client-web" ''
+      cargo build -p client --profile web-release --target wasm32-unknown-unknown && \
+      wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/web-release/client.wasm && \
       wasm-opt -Oz --output target/client_bg.wasm target/client_bg.wasm
+    '')
+    (pkgs.writeShellScriptBin "build-native" ''
+      build-server && build-client-native
+    '')
+    (pkgs.writeShellScriptBin "build-web" ''
+      build-server && build-client-web
     '')
     (pkgs.rust-bin.stable."1.75.0".default.override {
       targets = [ "wasm32-unknown-unknown" ];

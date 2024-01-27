@@ -4,14 +4,20 @@ members = [
   "client", "server", "shared",
 ]
 
-[profile.wasm-dev]
+[profile.native-dev]
 inherits = "dev"
 
-[profile.wasm-dev.package."*"]
+[profile.native-dev.package."*"]
+opt-level = 3
+
+[profile.web-dev]
+inherits = "dev"
+
+[profile.web-dev.package."*"]
 opt-level = "z"
 codegen-units = 1
 
-[profile.wasm-release]
+[profile.web-release]
 inherits = "release"
 opt-level = "z"
 lto = "fat"
