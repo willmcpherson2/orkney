@@ -14,11 +14,11 @@ pkgs.mkShell rec {
   ];
   buildInputs = [
     (pkgs.writeShellScriptBin "watch-server" ''
-      cargo watch -x "run -p server"
+      cargo watch -x "run -p server --color always"
     '')
     (pkgs.writeShellScriptBin "watch-client" ''
       cargo watch \
-        -x "build -p client --profile wasm-dev --target wasm32-unknown-unknown" \
+        -x "build -p client --profile wasm-dev --target wasm32-unknown-unknown --color always" \
         -s "wasm-bindgen --out-dir target --target web --no-typescript target/wasm32-unknown-unknown/wasm-dev/client.wasm"
     '')
     (pkgs.writeShellScriptBin "watch" ''
