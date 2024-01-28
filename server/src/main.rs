@@ -7,7 +7,10 @@ use axum::{
     routing::get,
     Router,
 };
-use futures_util::{SinkExt, StreamExt, stream::{SplitSink, SplitStream}};
+use futures_util::{
+    stream::{SplitSink, SplitStream},
+    SinkExt, StreamExt,
+};
 use shared::{ClientMessage, Lobby, ServerMessage};
 use std::{
     collections::HashMap,
@@ -16,9 +19,10 @@ use std::{
 };
 use tokio::{
     net,
-    sync::broadcast::{channel, Sender, Receiver},
+    sync::broadcast::{channel, Receiver, Sender},
 };
 use tower_http::services::ServeDir;
+use tracing::info;
 use tracing_subscriber::prelude::*;
 
 #[derive(Clone)]
@@ -47,7 +51,7 @@ async fn main() {
     let port = env::var("PORT").unwrap_or("3000".to_string());
     let root = env::var("ROOT").unwrap_or("./".to_string());
     let url = format!("localhost:{}", port);
-    tracing::debug!("listening on http://{}", url);
+    info!("listening on http://{}", url);
 
     let state = AppState {
         lobbies: Arc::new(Mutex::new(HashMap::new())),
@@ -67,7 +71,7 @@ async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    tracing::info!("lobby: {}, username: {}", lobby, username);
+    info!("lobby: {}, username: {}", lobby, username);
     let channel_send = state
         .lobbies
         .lock()
@@ -82,14 +86,14 @@ async fn websocket_handler(
 }
 
 async fn websocket(stream: WebSocket, mut channel_send: ChannelSend) {
-    tracing::info!("websocket opened");
+    info!("websocket opened");
 
     let (mut socket_send, mut socket_receive) = stream.split();
 
     let mut channel_receive = channel_send.subscribe();
     let mut handle_channel = tokio::spawn(async move {
         while let Ok(msg) = channel_receive.recv().await {
-            tracing::info!("sending message: {:?}", msg);
+            info!("sending message: {:?}", msg);
             let bytes = bincode::serialize(&msg).unwrap();
             socket_send.send(Message::Binary(bytes)).await.unwrap();
         }
@@ -100,15 +104,15 @@ async fn websocket(stream: WebSocket, mut channel_send: ChannelSend) {
             match msg {
                 Ok(Message::Binary(bytes)) => match bincode::deserialize(&bytes) {
                     Ok(msg) => {
-                        tracing::info!("received message: {:?}", msg);
+                        info!("received message: {:?}", msg);
                         receive(msg, &mut channel_send).await;
                     }
                     Err(err) => {
-                        tracing::info!("message error: {:?}", err);
+                        info!("message error: {:?}", err);
                     }
                 },
                 other => {
-                    tracing::info!("unknown message: {:?}", other);
+                    info!("unknown message: {:?}", other);
                 }
             }
         }
@@ -125,7 +129,7 @@ async fn websocket(stream: WebSocket, mut channel_send: ChannelSend) {
         }
     }
 
-    tracing::info!("websocket closed");
+    info!("websocket closed");
 }
 
 async fn receive(msg: ClientMessage, channel_send: &mut ChannelSend) {
