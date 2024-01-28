@@ -7,7 +7,7 @@ use axum::{
     routing::get,
     Router,
 };
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt, stream::{SplitSink, SplitStream}};
 use shared::{ClientMessage, Lobby, ServerMessage};
 use std::{
     collections::HashMap,
@@ -16,17 +16,23 @@ use std::{
 };
 use tokio::{
     net,
-    sync::broadcast::{channel, Sender},
+    sync::broadcast::{channel, Sender, Receiver},
 };
 use tower_http::services::ServeDir;
 use tracing_subscriber::prelude::*;
 
 #[derive(Clone)]
 struct AppState {
-    lobbies: Arc<Mutex<HashMap<Lobby, Clients>>>,
+    lobbies: Arc<Mutex<HashMap<Lobby, ChannelSend>>>,
 }
 
-type Clients = Sender<ServerMessage>;
+type ChannelSend = Sender<ServerMessage>;
+
+type ChannelReceive = Receiver<ServerMessage>;
+
+type SocketSend = SplitSink<WebSocket, Message>;
+
+type SocketReceive = SplitStream<WebSocket>;
 
 #[tokio::main]
 async fn main() {
@@ -62,40 +68,40 @@ async fn websocket_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     tracing::info!("lobby: {}, username: {}", lobby, username);
-    let clients = state
+    let channel_send = state
         .lobbies
         .lock()
         .unwrap()
         .entry(Lobby(lobby))
         .or_insert_with(|| {
-            let (tx, _) = channel(10);
-            tx
+            let (channel_send, _) = channel(10);
+            channel_send
         })
         .clone();
-    ws.on_upgrade(move |socket| websocket(socket, clients))
+    ws.on_upgrade(move |socket| websocket(socket, channel_send))
 }
 
-async fn websocket(stream: WebSocket, mut clients: Clients) {
+async fn websocket(stream: WebSocket, mut channel_send: ChannelSend) {
     tracing::info!("websocket opened");
 
-    let (mut client_outbox, mut client_inbox) = stream.split();
+    let (mut socket_send, mut socket_receive) = stream.split();
 
-    let mut clients_inbox = clients.subscribe();
-    let mut handle_clients_inbox = tokio::spawn(async move {
-        while let Ok(msg) = clients_inbox.recv().await {
+    let mut channel_receive = channel_send.subscribe();
+    let mut handle_channel = tokio::spawn(async move {
+        while let Ok(msg) = channel_receive.recv().await {
             tracing::info!("sending message: {:?}", msg);
             let bytes = bincode::serialize(&msg).unwrap();
-            client_outbox.send(Message::Binary(bytes)).await.unwrap();
+            socket_send.send(Message::Binary(bytes)).await.unwrap();
         }
     });
 
-    let mut handle_client_inbox = tokio::spawn(async move {
-        while let Some(msg) = client_inbox.next().await {
+    let mut handle_socket = tokio::spawn(async move {
+        while let Some(msg) = socket_receive.next().await {
             match msg {
                 Ok(Message::Binary(bytes)) => match bincode::deserialize(&bytes) {
                     Ok(msg) => {
                         tracing::info!("received message: {:?}", msg);
-                        receive(msg, &mut clients).await;
+                        receive(msg, &mut channel_send).await;
                     }
                     Err(err) => {
                         tracing::info!("message error: {:?}", err);
@@ -109,23 +115,23 @@ async fn websocket(stream: WebSocket, mut clients: Clients) {
     });
 
     tokio::select! {
-        _ = &mut handle_clients_inbox => {
-            tracing::info!("clients inbox closed, closing client inbox");
-            handle_client_inbox.abort();
+        _ = &mut handle_channel => {
+            tracing::info!("channel closed, aborting websocket");
+            handle_socket.abort();
         }
-        _ = &mut handle_client_inbox => {
-            tracing::info!("client inbox closed, closing clients inbox");
-            handle_clients_inbox.abort();
+        _ = &mut handle_socket => {
+            tracing::info!("websocket closed, aborting channel");
+            handle_channel.abort();
         }
     }
 
     tracing::info!("websocket closed");
 }
 
-async fn receive(msg: ClientMessage, clients_outbox: &mut Sender<ServerMessage>) {
+async fn receive(msg: ClientMessage, channel_send: &mut ChannelSend) {
     match msg {
         ClientMessage::HelloFromClient => {
-            clients_outbox.send(ServerMessage::HelloFromServer).unwrap();
+            channel_send.send(ServerMessage::HelloFromServer).unwrap();
         }
     }
 }
