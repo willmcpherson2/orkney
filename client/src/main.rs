@@ -37,9 +37,12 @@ fn main() {
         .add_state::<AppState>()
         .add_systems(OnEnter(AppState::Menu), enter_menu)
         .add_systems(Update, update_menu.run_if(in_state(AppState::Menu)))
-        .add_systems(OnEnter(AppState::Game), join_game)
-        .add_systems(OnEnter(AppState::Game), enter_game)
-        .add_systems(Update, update_game.run_if(in_state(AppState::Game)))
+        .add_systems(OnEnter(AppState::Game), (join_game, enter_game))
+        .add_systems(
+            Update,
+            (handle_socket, handle_keys).run_if(in_state(AppState::Game)),
+        )
+        .add_systems(OnExit(AppState::Game), leave_game)
         .run();
 }
 
@@ -79,38 +82,6 @@ fn update_menu(
     });
 }
 
-fn enter_game(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(shape::Circle::new(4.0).into()),
-        material: materials.add(Color::WHITE.into()),
-        transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-        ..default()
-    });
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb_u8(124, 144, 255).into()),
-        transform: Transform::from_xyz(0.0, 0.5, 0.0),
-        ..default()
-    });
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
-            intensity: 1500.0,
-            shadows_enabled: true,
-            ..default()
-        },
-        transform: Transform::from_xyz(4.0, 8.0, 4.0),
-        ..default()
-    });
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
-}
-
 fn join_game(world: &mut World) {
     let lobby = world.get_resource::<Lobby>().unwrap();
     let username = world.get_resource::<Username>().unwrap();
@@ -123,7 +94,9 @@ fn join_game(world: &mut World) {
     world.insert_resource(Receiver(Mutex::new(receiver)));
 }
 
-fn update_game(mut sender: NonSendMut<Sender>, receiver: ResMut<Receiver>) {
+fn enter_game() {}
+
+fn handle_socket(mut sender: NonSendMut<Sender>, receiver: ResMut<Receiver>) {
     while let Some(event) = receiver.try_recv() {
         match event {
             WsEvent::Message(msg) => match msg {
@@ -150,4 +123,15 @@ fn update_game(mut sender: NonSendMut<Sender>, receiver: ResMut<Receiver>) {
             }
         }
     }
+}
+
+fn handle_keys(mut next_state: ResMut<NextState<AppState>>, keyboard_input: Res<Input<KeyCode>>) {
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        next_state.set(AppState::Menu);
+    }
+}
+
+fn leave_game(world: &mut World) {
+    world.remove_non_send_resource::<Sender>();
+    world.remove_resource::<Receiver>();
 }
