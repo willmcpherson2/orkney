@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{app::AppExit, prelude::*};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use bincode::{deserialize, serialize};
 use ewebsock::{WsEvent, WsMessage, WsReceiver, WsSender};
@@ -53,6 +53,7 @@ fn update_menu(
     mut next_state: ResMut<NextState<AppState>>,
     mut username: ResMut<Username>,
     mut lobby: ResMut<Lobby>,
+    mut exit: EventWriter<AppExit>,
 ) {
     let ctx = contexts.ctx_mut();
     egui::CentralPanel::default().show(ctx, |ui| {
@@ -71,6 +72,9 @@ fn update_menu(
         });
         if ui.add(egui::Button::new("Join")).clicked() {
             next_state.set(AppState::Game);
+        }
+        if ui.add(egui::Button::new("Exit")).clicked() {
+            exit.send(AppExit);
         }
     });
 }
