@@ -8,8 +8,12 @@ use axum::{
     Router,
 };
 use futures_util::{SinkExt, StreamExt};
-use shared::{ClientMessage, ServerMessage};
-use std::{env, sync::Arc};
+use shared::{ClientMessage, Lobby, ServerMessage};
+use std::{
+    collections::HashMap,
+    env,
+    sync::{Arc, Mutex},
+};
 use tokio::{
     net,
     sync::broadcast::{channel, Sender},
@@ -17,9 +21,12 @@ use tokio::{
 use tower_http::services::ServeDir;
 use tracing_subscriber::prelude::*;
 
+#[derive(Clone)]
 struct AppState {
-    clients: Sender<ServerMessage>,
+    lobbies: Arc<Mutex<HashMap<Lobby, Clients>>>,
 }
+
+type Clients = Sender<ServerMessage>;
 
 #[tokio::main]
 async fn main() {
@@ -36,8 +43,9 @@ async fn main() {
     let url = format!("localhost:{}", port);
     tracing::debug!("listening on http://{}", url);
 
-    let (tx, _rx) = channel(100);
-    let state = Arc::new(AppState { clients: tx });
+    let state = AppState {
+        lobbies: Arc::new(Mutex::new(HashMap::new())),
+    };
 
     let router = Router::new()
         .nest_service("/", ServeDir::new(root))
@@ -51,18 +59,28 @@ async fn main() {
 async fn websocket_handler(
     Path((lobby, username)): Path<(String, String)>,
     ws: WebSocketUpgrade,
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
 ) -> impl IntoResponse {
     tracing::info!("lobby: {}, username: {}", lobby, username);
-    ws.on_upgrade(move |socket| websocket(socket, state))
+    let clients = state
+        .lobbies
+        .lock()
+        .unwrap()
+        .entry(Lobby(lobby))
+        .or_insert_with(|| {
+            let (tx, _) = channel(10);
+            tx
+        })
+        .clone();
+    ws.on_upgrade(move |socket| websocket(socket, clients))
 }
 
-async fn websocket(stream: WebSocket, state: Arc<AppState>) {
+async fn websocket(stream: WebSocket, mut clients: Clients) {
     tracing::info!("websocket opened");
 
     let (mut client_outbox, mut client_inbox) = stream.split();
 
-    let mut clients_inbox = state.clients.subscribe();
+    let mut clients_inbox = clients.subscribe();
     let mut handle_clients_inbox = tokio::spawn(async move {
         while let Ok(msg) = clients_inbox.recv().await {
             tracing::info!("sending message: {:?}", msg);
@@ -71,14 +89,13 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
         }
     });
 
-    let mut clients_outbox = state.clients.clone();
     let mut handle_client_inbox = tokio::spawn(async move {
         while let Some(msg) = client_inbox.next().await {
             match msg {
                 Ok(Message::Binary(bytes)) => match bincode::deserialize(&bytes) {
                     Ok(msg) => {
                         tracing::info!("received message: {:?}", msg);
-                        receive(msg, &mut clients_outbox).await;
+                        receive(msg, &mut clients).await;
                     }
                     Err(err) => {
                         tracing::info!("message error: {:?}", err);

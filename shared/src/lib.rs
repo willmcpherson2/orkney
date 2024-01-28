@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Resource)]
 pub struct Username(pub String);
 
-#[derive(Serialize, Deserialize, Debug, Resource)]
+#[derive(Serialize, Deserialize, Debug, Clone, Resource, Eq, PartialEq, Hash)]
 pub struct Lobby(pub String);
 
 #[derive(Serialize, Deserialize, Debug)]
