@@ -16,9 +16,6 @@ type Socket = MatchboxSocket<SingleChannel>;
 #[derive(Serialize, Deserialize, Debug, Resource)]
 struct Lobby(String);
 
-#[derive(Serialize, Deserialize, Debug, Resource)]
-struct Username(String);
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 enum Message {
     Hello,
@@ -49,14 +46,12 @@ fn main() {
 }
 
 fn enter_menu(mut commands: Commands) {
-    commands.insert_resource(Username("Anonymous".to_string()));
     commands.insert_resource(Lobby("Public".to_string()));
 }
 
 fn update_menu(
     mut contexts: EguiContexts,
     mut next_state: ResMut<NextState<AppState>>,
-    mut username: ResMut<Username>,
     mut lobby: ResMut<Lobby>,
     mut exit: EventWriter<AppExit>,
 ) {
@@ -66,10 +61,6 @@ fn update_menu(
         ui.horizontal(|ui| {
             ui.label("Theme:");
             egui::global_dark_light_mode_buttons(ui);
-        });
-        ui.horizontal(|ui| {
-            ui.label("Username:");
-            ui.text_edit_singleline(&mut username.0);
         });
         ui.horizontal(|ui| {
             ui.label("Lobby:");
@@ -84,9 +75,9 @@ fn update_menu(
     });
 }
 
-fn join_game(mut commands: Commands, _username: Res<Username>, _lobby: Res<Lobby>) {
-    let url = "ws://0.0.0.0:3536/orkney";
-    let socket = MatchboxSocket::new_reliable(url);
+fn join_game(mut commands: Commands, lobby: Res<Lobby>) {
+    let url = format!("ws://0.0.0.0:3001/{}", lobby.0);
+    let socket = MatchboxSocket::new_reliable(&url);
     commands.insert_resource(socket);
     info!("connected to {url}");
 }
