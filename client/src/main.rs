@@ -1,9 +1,8 @@
 use bevy::{app::AppExit, prelude::*};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use bevy_matchbox::prelude::*;
 use bincode::{deserialize, serialize};
-use ewebsock::{WsEvent, WsMessage, WsReceiver, WsSender};
-use shared::{ClientMessage, Lobby, ServerMessage, Username};
-use std::sync::Mutex;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum AppState {
@@ -12,22 +11,17 @@ enum AppState {
     Game,
 }
 
-struct Sender(WsSender);
+type Socket = MatchboxSocket<SingleChannel>;
 
-impl Sender {
-    fn send(&mut self, msg: ClientMessage) {
-        let bytes = serialize(&msg).unwrap();
-        self.0.send(WsMessage::Binary(bytes));
-    }
-}
+#[derive(Serialize, Deserialize, Debug, Resource)]
+struct Lobby(String);
 
-#[derive(Resource)]
-struct Receiver(Mutex<WsReceiver>);
+#[derive(Serialize, Deserialize, Debug, Resource)]
+struct Username(String);
 
-impl Receiver {
-    fn try_recv(&self) -> Option<WsEvent> {
-        self.0.lock().unwrap().try_recv()
-    }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+enum Message {
+    Hello,
 }
 
 fn main() {
@@ -90,56 +84,45 @@ fn update_menu(
     });
 }
 
-fn join_game(world: &mut World) {
-    let lobby = world.get_resource::<Lobby>().unwrap();
-    let username = world.get_resource::<Username>().unwrap();
-
-    let url = format!("ws://localhost:3000/join/{}/{}", &lobby.0, &username.0);
-    info!("connecting to {}", url);
-    let (sender, receiver) = ewebsock::connect(url).unwrap();
-
-    world.insert_non_send_resource(Sender(sender));
-    world.insert_resource(Receiver(Mutex::new(receiver)));
+fn join_game(mut commands: Commands, _username: Res<Username>, _lobby: Res<Lobby>) {
+    let url = "ws://0.0.0.0:3536/orkney";
+    let socket = MatchboxSocket::new_reliable(url);
+    commands.insert_resource(socket);
+    info!("connected to {url}");
 }
 
 fn enter_game() {}
 
-fn handle_socket(mut sender: NonSendMut<Sender>, receiver: ResMut<Receiver>) {
-    while let Some(event) = receiver.try_recv() {
-        match event {
-            WsEvent::Message(msg) => match msg {
-                WsMessage::Binary(bytes) => match deserialize::<ServerMessage>(&bytes) {
-                    Ok(msg) => {
-                        info!("received message: {:?}", msg);
-                    }
-                    Err(err) => {
-                        info!("message error: {:?}", err);
-                    }
-                },
-                msg => info!("non-binary message: {:?}", msg),
-            },
-            WsEvent::Opened => {
-                let msg = ClientMessage::HelloFromClient;
-                info!("sending message: {:?}", msg);
-                sender.send(msg);
-            }
-            WsEvent::Closed => {
-                info!("websocket closed");
-            }
-            WsEvent::Error(err) => {
-                info!("websocket error: {:?}", err);
-            }
+fn handle_socket(mut socket: ResMut<Socket>) {
+    socket.update_peers();
+    for (peer, bytes) in socket.receive() {
+        let msg = deserialize::<Message>(bytes.as_ref()).unwrap();
+        let id = socket.id().unwrap();
+        info!("local {:?} <- peer {:?}: {:?}", id, peer, msg);
+    }
+}
+
+fn handle_keys(
+    mut next_state: ResMut<NextState<AppState>>,
+    keyboard_input: Res<Input<KeyCode>>,
+    mut socket: ResMut<Socket>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        next_state.set(AppState::Menu);
+    }
+    if keyboard_input.just_pressed(KeyCode::M) {
+        info!("sending messages...");
+        let peers = socket.connected_peers().collect::<Vec<PeerId>>();
+        for peer in peers {
+            let msg = Message::Hello;
+            let bytes = serialize(&msg).unwrap();
+            socket.send(bytes.into_boxed_slice(), peer);
+            let id = socket.id().unwrap();
+            info!("local {:?} -> peer {:?}: {:?}", id, peer, msg);
         }
     }
 }
 
-fn handle_keys(mut next_state: ResMut<NextState<AppState>>, keyboard_input: Res<Input<KeyCode>>) {
-    if keyboard_input.just_pressed(KeyCode::Escape) {
-        next_state.set(AppState::Menu);
-    }
-}
-
-fn leave_game(world: &mut World) {
-    world.remove_non_send_resource::<Sender>();
-    world.remove_resource::<Receiver>();
+fn leave_game(mut commands: Commands) {
+    commands.remove_resource::<Socket>();
 }
