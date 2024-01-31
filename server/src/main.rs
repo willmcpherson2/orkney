@@ -15,7 +15,7 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let port = env::var("HOST").unwrap_or("0.0.0.0".to_string());
+    let host = env::var("HOST").unwrap_or("0.0.0.0".to_string());
     let port = env::var("PORT").unwrap_or("3000".to_string());
     let root = env::var("ROOT").unwrap_or("./".to_string());
     let url = format!("{}:{}", host, port);
