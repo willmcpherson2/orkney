@@ -16,7 +16,7 @@ use crate::{
     topology::MatchmakingDemoTopology,
 };
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
     tracing_subscriber::registry()
         .with(
