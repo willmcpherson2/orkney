@@ -33,6 +33,9 @@ async fn main() {
     let signaling_url: SocketAddr = format!("{}:{}", host, signaling_port).parse().unwrap();
     let root = env::var("ROOT").unwrap_or("./".to_string());
 
+    info!("static file server running on http://{}", static_url);
+    info!("signaling server running on http://{}", signaling_url);
+
     let app = Router::new()
         .nest_service("/", ServeDir::new(root))
         .layer(TraceLayer::new_for_http())
