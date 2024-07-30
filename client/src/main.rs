@@ -33,7 +33,7 @@ fn main() {
             ..default()
         }))
         .add_plugins(EguiPlugin)
-        .add_state::<AppState>()
+        .init_state::<AppState>()
         .add_systems(OnEnter(AppState::Menu), enter_menu)
         .add_systems(Update, update_menu.run_if(in_state(AppState::Menu)))
         .add_systems(OnEnter(AppState::Game), (join_game, enter_game))
@@ -70,7 +70,7 @@ fn update_menu(
             next_state.set(AppState::Game);
         }
         if ui.add(egui::Button::new("Exit")).clicked() {
-            exit.send(AppExit);
+            exit.send(AppExit::Success);
         }
     });
 }
@@ -95,13 +95,13 @@ fn handle_socket(mut socket: ResMut<Socket>) {
 
 fn handle_keys(
     mut next_state: ResMut<NextState<AppState>>,
-    keyboard_input: Res<Input<KeyCode>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut socket: ResMut<Socket>,
 ) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
         next_state.set(AppState::Menu);
     }
-    if keyboard_input.just_pressed(KeyCode::M) {
+    if keyboard_input.just_pressed(KeyCode::KeyM) {
         info!("sending messages...");
         let peers = socket.connected_peers().collect::<Vec<PeerId>>();
         for peer in peers {
