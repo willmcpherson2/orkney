@@ -1,7 +1,7 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
-    rust-overlay.url = "github:oxalica/rust-overlay/e36f66b";
+    rust-overlay.url = "github:oxalica/rust-overlay/b799607";
   };
 
   outputs = { self, nixpkgs, rust-overlay }:
@@ -52,7 +52,7 @@
           (pkgs.writeShellScriptBin "build-web" ''
             build-server && build-client-web
           '')
-          (pkgs.rust-bin.stable."1.75.0".default.override {
+          (pkgs.rust-bin.stable."1.79.0".default.override {
             targets = [ "wasm32-unknown-unknown" ];
             extensions = [ "rust-src" "rust-analyzer-preview" ];
           })
