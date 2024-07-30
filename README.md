@@ -2,7 +2,7 @@
 
 ```sh
 # get the environment
-nix-shell
+nix develop
 
 # run one of these
 watch-native
