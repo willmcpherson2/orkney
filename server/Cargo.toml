@@ -5,13 +5,13 @@ edition = "2021"
 
 [dependencies]
 shared = { path = "../shared" }
-axum = "0.6.20"
-tokio = "1.0"
-tower-http = { version = "0.4.0", features = ["fs"] }
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-matchbox_signaling = "0.8.0"
-matchbox_protocol = "0.8.0"
+axum = { version = "0.7", features = ["ws"] }
+tokio = { version = "1.32", features = ["macros", "rt-multi-thread"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
+tracing = { version = "0.1", features = ["log"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+matchbox_signaling = "0.10.0"
+matchbox_protocol = "0.10.0"
 async-trait = "0.1"
-serde = "1.0"
-futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+futures = { version = "0.3", default-features = false, features = ["alloc"] }

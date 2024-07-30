@@ -6,7 +6,8 @@ mod topology;
 
 use axum::Router;
 use matchbox_signaling::SignalingServerBuilder;
-use std::{env, net::SocketAddr};
+use std::{env, future::IntoFuture, net::SocketAddr};
+use tokio::net::TcpListener;
 use tower_http::{services::ServeDir, trace::TraceLayer};
 use tracing::info;
 use tracing_subscriber::prelude::*;
@@ -40,7 +41,8 @@ async fn main() {
         .nest_service("/", ServeDir::new(root))
         .layer(TraceLayer::new_for_http())
         .into_make_service();
-    let static_server = axum::Server::bind(&static_url).serve(app);
+    let listener = TcpListener::bind(&static_url).await.unwrap();
+    let static_server = axum::serve(listener, app).into_future();
 
     let mut state = ServerState::default();
     let signaling_server =
