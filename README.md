@@ -5,8 +5,8 @@
 nix develop
 
 # run one of these
-watch-native
-watch-web
-build-native
-build-web
+make watch-native
+make watch-web
+make build-native
+make build-web
 ```
