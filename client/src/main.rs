@@ -34,9 +34,9 @@ fn main() {
         }))
         .add_plugins(EguiPlugin)
         .init_state::<AppState>()
-        .add_systems(OnEnter(AppState::Menu), enter_menu)
+        .add_systems(Startup, startup)
         .add_systems(Update, update_menu.run_if(in_state(AppState::Menu)))
-        .add_systems(OnEnter(AppState::Game), (join_game, enter_game))
+        .add_systems(OnEnter(AppState::Game), join_game)
         .add_systems(
             Update,
             (handle_socket, handle_keys).run_if(in_state(AppState::Game)),
@@ -45,7 +45,7 @@ fn main() {
         .run();
 }
 
-fn enter_menu(mut commands: Commands) {
+fn startup(mut commands: Commands) {
     commands.insert_resource(Lobby("Public".to_string()));
 }
 
@@ -81,8 +81,6 @@ fn join_game(mut commands: Commands, lobby: Res<Lobby>) {
     commands.insert_resource(socket);
     info!("connected to {url}");
 }
-
-fn enter_game() {}
 
 fn handle_socket(mut socket: ResMut<Socket>) {
     socket.update_peers();
