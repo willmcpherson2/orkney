@@ -1,5 +1,6 @@
 use bevy::{
     app::AppExit,
+    ecs::system::SystemParam,
     input::{mouse::MouseButtonInput, ButtonState},
     prelude::*,
     render::camera::ScalingMode,
@@ -35,6 +36,32 @@ struct Player;
 
 #[derive(Component)]
 struct Waypoint(Option<Vec3>);
+
+#[derive(SystemParam)]
+struct ScreenToGround<'w, 's> {
+    camera: Query<'w, 's, (&'static Camera, &'static GlobalTransform)>,
+    ground_transform: Query<'w, 's, &'static GlobalTransform, With<Ground>>,
+    window: Query<'w, 's, &'static Window>,
+}
+
+impl<'w, 's> ScreenToGround<'w, 's> {
+    fn ground_transform(&self) -> GlobalTransform {
+        *self.ground_transform.single()
+    }
+
+    fn position(&self) -> Option<Vec3> {
+        let (camera, camera_transform) = self.camera.single();
+        let ground_transform = self.ground_transform();
+        let cursor_position = self.window.single().cursor_position()?;
+
+        let ray = camera.viewport_to_world(camera_transform, cursor_position)?;
+        let distance = ray.intersect_plane(
+            ground_transform.translation(),
+            InfinitePlane3d::new(ground_transform.up()),
+        )?;
+        Some(ray.get_point(distance))
+    }
+}
 
 fn main() {
     App::new()
@@ -190,24 +217,16 @@ fn handle_keys(
 
 fn handle_mouse(
     mut events: EventReader<MouseButtonInput>,
-    camera: Query<(&Camera, &GlobalTransform)>,
-    ground: Query<&GlobalTransform, With<Ground>>,
-    window: Query<&Window>,
+    screen_to_ground: ScreenToGround,
     mut waypoint: Query<&mut Waypoint, With<Player>>,
 ) {
-    let (camera, camera_transform) = camera.single();
-    let ground = ground.single();
-    let Some(cursor_position) = window.single().cursor_position() else {
-        return;
-    };
+    let ground_transform = screen_to_ground.ground_transform();
 
     for event in events.read() {
         match (event.button, event.state) {
             (MouseButton::Left, ButtonState::Released) => {
-                if let Some(ground_position) =
-                    screen_to_ground(camera, camera_transform, ground, cursor_position)
-                {
-                    let ground_position = ground_position + ground.up() * 0.5;
+                if let Some(ground_position) = screen_to_ground.position() {
+                    let ground_position = ground_position + ground_transform.up() * 0.5;
                     for mut waypoint in waypoint.iter_mut() {
                         waypoint.0 = Some(ground_position);
                     }
@@ -225,13 +244,13 @@ fn handle_mouse(
 
 fn update_player(
     waypoint: Query<&Waypoint, With<Player>>,
-    mut transform: Query<&mut Transform, With<Player>>,
+    mut player_transform: Query<&mut Transform, With<Player>>,
     time: Res<Time>,
 ) {
     let Some(waypoint) = waypoint.single().0 else {
         return;
     };
-    let mut transform = transform.single_mut();
+    let mut transform = player_transform.single_mut();
 
     let direction = waypoint - transform.translation;
     let distance = direction.length();
@@ -245,49 +264,27 @@ fn update_player(
     }
 }
 
-fn update_camera(player: Query<&Transform, With<Player>>, mut camera: Query<&mut PanOrbitCamera>) {
-    let player = player.single().translation;
+fn update_camera(
+    player_transform: Query<&Transform, With<Player>>,
+    mut camera: Query<&mut PanOrbitCamera>,
+) {
+    let player = player_transform.single().translation;
     let mut camera = camera.single_mut();
     camera.target_focus = player;
 }
 
-fn draw_cursor(
-    camera: Query<(&Camera, &GlobalTransform)>,
-    ground: Query<&GlobalTransform, With<Ground>>,
-    window: Query<&Window>,
-    mut gizmos: Gizmos,
-) {
-    let (camera, camera_transform) = camera.single();
-    let ground = ground.single();
-    let Some(cursor_position) = window.single().cursor_position() else {
-        return;
-    };
-
-    let Some(ground_position) = screen_to_ground(camera, camera_transform, ground, cursor_position)
-    else {
+fn draw_cursor(screen_to_ground: ScreenToGround, mut gizmos: Gizmos) {
+    let ground_transform = screen_to_ground.ground_transform();
+    let Some(ground_position) = screen_to_ground.position() else {
         return;
     };
 
     gizmos.circle(
-        ground_position + ground.up() * 0.01,
-        ground.up(),
+        ground_position + ground_transform.up() * 0.01,
+        ground_transform.up(),
         0.2,
         Color::WHITE,
     );
-}
-
-fn screen_to_ground(
-    camera: &Camera,
-    camera_transform: &GlobalTransform,
-    ground_transform: &GlobalTransform,
-    position: Vec2,
-) -> Option<Vec3> {
-    let ray = camera.viewport_to_world(camera_transform, position)?;
-    let distance = ray.intersect_plane(
-        ground_transform.translation(),
-        InfinitePlane3d::new(ground_transform.up()),
-    )?;
-    Some(ray.get_point(distance))
 }
 
 fn leave_game(mut commands: Commands) {
