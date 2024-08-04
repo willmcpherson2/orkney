@@ -1,6 +1,12 @@
-use bevy::{app::AppExit, prelude::*};
+use bevy::{
+    app::AppExit,
+    input::{mouse::MouseButtonInput, ButtonState},
+    prelude::*,
+    render::camera::ScalingMode,
+};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use bevy_matchbox::prelude::*;
+use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bincode::{deserialize, serialize};
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +27,15 @@ enum Message {
     Hello,
 }
 
+#[derive(Component)]
+struct Ground;
+
+#[derive(Component)]
+struct Player;
+
+#[derive(Component)]
+struct Waypoint(Option<Vec3>);
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -33,20 +48,81 @@ fn main() {
             ..default()
         }))
         .add_plugins(EguiPlugin)
+        .add_plugins(PanOrbitCameraPlugin)
         .init_state::<AppState>()
         .add_systems(Startup, startup)
         .add_systems(Update, update_menu.run_if(in_state(AppState::Menu)))
         .add_systems(OnEnter(AppState::Game), join_game)
         .add_systems(
             Update,
-            (handle_socket, handle_keys).run_if(in_state(AppState::Game)),
+            (
+                handle_socket,
+                handle_keys,
+                handle_mouse,
+                update_player,
+                update_camera,
+                draw_cursor,
+            )
+                .run_if(in_state(AppState::Game)),
         )
         .add_systems(OnExit(AppState::Game), leave_game)
         .run();
 }
 
-fn startup(mut commands: Commands) {
+fn startup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
     commands.insert_resource(Lobby("Public".to_string()));
+
+    commands.spawn((
+        Ground,
+        PbrBundle {
+            mesh: meshes.add(Plane3d::default().mesh().size(20., 20.)),
+            material: materials.add(Color::srgb(0.3, 0.5, 0.3)),
+            ..default()
+        },
+    ));
+
+    commands.spawn(PbrBundle {
+        mesh: meshes.add(Cuboid::default()),
+        material: materials.add(Color::srgb(0.8, 0.7, 0.6)),
+        transform: Transform::from_xyz(1.0, 0.5, 1.0),
+        ..default()
+    });
+
+    commands.spawn((
+        Player,
+        Waypoint(None),
+        PbrBundle {
+            mesh: meshes.add(Cuboid::default()),
+            material: materials.add(Color::srgb(0.6, 0.7, 0.9)),
+            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            ..default()
+        },
+    ));
+
+    commands.spawn(PointLightBundle {
+        transform: Transform::from_xyz(3.0, 8.0, 5.0),
+        ..default()
+    });
+
+    commands.spawn((
+        Camera3dBundle {
+            projection: OrthographicProjection {
+                scaling_mode: ScalingMode::FixedVertical(1.0),
+                ..default()
+            }
+            .into(),
+            transform: Transform::from_xyz(5.0, 5.0, 5.0),
+            ..default()
+        },
+        PanOrbitCamera {
+            button_orbit: MouseButton::Middle,
+            ..default()
+        },
+    ));
 }
 
 fn update_menu(
@@ -110,6 +186,108 @@ fn handle_keys(
             info!("local {:?} -> peer {:?}: {:?}", id, peer, msg);
         }
     }
+}
+
+fn handle_mouse(
+    mut events: EventReader<MouseButtonInput>,
+    camera: Query<(&Camera, &GlobalTransform)>,
+    ground: Query<&GlobalTransform, With<Ground>>,
+    window: Query<&Window>,
+    mut waypoint: Query<&mut Waypoint, With<Player>>,
+) {
+    let (camera, camera_transform) = camera.single();
+    let ground = ground.single();
+    let Some(cursor_position) = window.single().cursor_position() else {
+        return;
+    };
+
+    for event in events.read() {
+        match (event.button, event.state) {
+            (MouseButton::Left, ButtonState::Released) => {
+                if let Some(ground_position) =
+                    screen_to_ground(camera, camera_transform, ground, cursor_position)
+                {
+                    let ground_position = ground_position + ground.up() * 0.5;
+                    for mut waypoint in waypoint.iter_mut() {
+                        waypoint.0 = Some(ground_position);
+                    }
+                }
+            }
+            (MouseButton::Right, ButtonState::Released) => {
+                for mut waypoint in waypoint.iter_mut() {
+                    waypoint.0 = None;
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn update_player(
+    waypoint: Query<&Waypoint, With<Player>>,
+    mut transform: Query<&mut Transform, With<Player>>,
+    time: Res<Time>,
+) {
+    let Some(waypoint) = waypoint.single().0 else {
+        return;
+    };
+    let mut transform = transform.single_mut();
+
+    let direction = waypoint - transform.translation;
+    let distance = direction.length();
+    let speed = 10.0;
+    let velocity = direction.normalize() * speed;
+    let delta = velocity * time.delta_seconds();
+    if delta.length() < distance {
+        transform.translation += delta;
+    } else {
+        transform.translation = waypoint;
+    }
+}
+
+fn update_camera(player: Query<&Transform, With<Player>>, mut camera: Query<&mut PanOrbitCamera>) {
+    let player = player.single().translation;
+    let mut camera = camera.single_mut();
+    camera.target_focus = player;
+}
+
+fn draw_cursor(
+    camera: Query<(&Camera, &GlobalTransform)>,
+    ground: Query<&GlobalTransform, With<Ground>>,
+    window: Query<&Window>,
+    mut gizmos: Gizmos,
+) {
+    let (camera, camera_transform) = camera.single();
+    let ground = ground.single();
+    let Some(cursor_position) = window.single().cursor_position() else {
+        return;
+    };
+
+    let Some(ground_position) = screen_to_ground(camera, camera_transform, ground, cursor_position)
+    else {
+        return;
+    };
+
+    gizmos.circle(
+        ground_position + ground.up() * 0.01,
+        ground.up(),
+        0.2,
+        Color::WHITE,
+    );
+}
+
+fn screen_to_ground(
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+    ground_transform: &GlobalTransform,
+    position: Vec2,
+) -> Option<Vec3> {
+    let ray = camera.viewport_to_world(camera_transform, position)?;
+    let distance = ray.intersect_plane(
+        ground_transform.translation(),
+        InfinitePlane3d::new(ground_transform.up()),
+    )?;
+    Some(ray.get_point(distance))
 }
 
 fn leave_game(mut commands: Commands) {
